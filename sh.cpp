@@ -55,11 +55,11 @@ bool quit(string input) {
   return (input == "quit" || input == "exit" || input == "Exit" || input == "Quit" || input == "QUIT" ||input == "EXIT");
 }
 
+
 char** read_args(char **argv) {
   char *cstr;
   string arg;
   int argc = 0;
-
   // Read in arguments till the user hits enter
   while (cin >> arg) {
     
@@ -90,35 +90,32 @@ char** read_args(char **argv) {
 bool execute(char**argv){
   pid_t pid;
   int stat;
-  char const *path_str = "/bin/";
-  int length = strlen(path_str) + strlen(argv[0]) + 1;
+  char const *path_str = "/bin/"; //adding this to the path from argv
+  int length = strlen(path_str) + strlen(argv[0]) + 1; 
   char*path = (char*)malloc(length);
-  strcpy(path, path_str);//copy the path string into path*/
-  strcat(path, argv[0]);
+  strcpy(path, path_str); //copy the path string into path
+  strcat(path, argv[0]); //cat the input into the path
   int i =0;
-  cout << argv[0] <<", " << argv[1] << endl;
+  while(argv[i]!=NULL){
+    cout << i << ": " << argv[i] << endl; 
+    i++;
+  }//print the argv -- only for testing
   if((pid = fork()) == -1) {
     perror("FORK ERROR");
-  }
+  }//start fork
   else if(pid == 0){
     if(execvp(path,argv) == -1){
       perror("EXEC CHILD ERROR"); 
-    //in child
-    }//if
-
+    }//if error
+  //IN CHILD
   }else{
     while(!WIFEXITED(stat) && !WIFSIGNALED(stat)){
       waitpid(pid,&stat,WUNTRACED);
-      wait(NULL);
       cout << "PARENT" << endl;
-      
-      //in parent
-    }
-  }  
-  //  free(path);
+    }//wait for child
+  }//IN PARENT  
   return true;
-  
-}
+}//execute function
 
 
 string getexepath(){
@@ -127,8 +124,7 @@ string getexepath(){
   ssize_t c = readlink( "/proc/self/exe", result, PATH_MAX );
   if (c != -1) path = dirname(result);
   return path;
-}
-
+}//getexepath
 
 int main(){
   bool run = true;
@@ -137,9 +133,5 @@ int main(){
     cout << "1730sh:" << getexepath() << "$ ";
     command_args = read_args(argv);
     run = execute(command_args);
-
-  }//while
-
-
-
-}
+  }//loop
+}//main
