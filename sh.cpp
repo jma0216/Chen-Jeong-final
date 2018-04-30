@@ -64,7 +64,6 @@ void syserr(char * msg){
   abort();
 }
 
-
 // check the command for any I/O redirection
 void checkIO(char **args){
   // reset input and output and append
