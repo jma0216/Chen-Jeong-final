@@ -26,6 +26,7 @@ string getexepath(){
 }
 
 char** read(){
+
   char input_char[100];
   char** argv = (char**)malloc(100);
   char*input; 
@@ -82,6 +83,7 @@ bool execute(char**argv){
   }  
   //  free(path);
   return true;
+  
 }
 
   
