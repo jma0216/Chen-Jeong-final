@@ -14,8 +14,6 @@
 #include <sys/wait.h>
 using namespace std;
 
-//bool prompt = true;
-//string message;
 
 string getexepath(){
   const char * path;
@@ -25,6 +23,8 @@ string getexepath(){
     return path;
 }
 
+
+
 char** read(){
   char** argv = (char**)malloc(100);
   char*input; 
@@ -33,13 +33,13 @@ char** read(){
   size_t buf = 0;
   getline(&input, &buf, stdin);
   input_tok = strtok(input, " ");
+
   while(input_tok != NULL){
     argv[argc] = input_tok;
     argc++;
     input_tok = strtok(NULL, " ");
   }
   argv[argc] = NULL;
-  
   return argv;  
 }//read
 

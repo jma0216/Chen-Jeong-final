@@ -1,111 +1,230 @@
-#include <stdio.h>
 #include <string.h>
-#include <iostream>
-#include <cstdio>
-#include <cstdlib>
-#include <fcntl.h>
-#include <unistd.h>
-#include <getopt.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <limits.h>
-#include <libgen.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <sys/wait.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <signal.h>
+#include <iostream>
+#include <libgen.h>
+
+#define MAX_BUFFER 1024     // max line buffer
+#define MAX_ARGS 64         // max # args
+#define SEPARATORS " \t\n"  // token sparators
 using namespace std;
 
-const int MAX_ARGS = 256;
-char *argv[MAX_ARGS], *cmd1[MAX_ARGS], *cmd2[MAX_ARGS];
-int argc;
+void cd(char *d);
+void env(char **e);
+void syserr(char * msg);
+void checkIO(char **args);
+int checkBackground(char **args);
+void setMyShellEnv();
 
-//True for redirect, false for everything else.
-bool parse_command(int, char**, char**, char**){
-  int x = -1;
-  bool result = false;
- 
-  for (int i = 0; i < argc; i++){
-    if (strcmp(argv[i], ">>") == 0) { 
-      result = true; //i/o redirect is true
-      x = i;
-    }
+extern char **environ; //env variables
+extern int errno;      // system error number
+pid_t pid;             // process ID
+int status;             // status for fork/exec process
+int in, out, input, output, append; // I/O redirection parameters
+char *inputFile, *outputFile; // I/O input and output files
+FILE *fp;             //pointer to file for ouput file  
+
+// get the environment variables
+void env(char **e){
+  char **env = e;
+  // IO redirection
+  if (output == 1){
+    fp = fopen(outputFile, "w");
   }
-  
-  if (result == false) {
-    // Go through the array of arguments up to the point where the
-    // redirect was found and store each of those arguments in cmd1.
-    for (int i = 0; i < x; i++)
-      cmd1[i] = argv[i];
-    
-    int count = 0;
-    for (int i = x+1; i < argc; i++) {
-      cmd2[count] = argv[i];
-      count++;
+  else if (append == 1){
+    fp = fopen(outputFile, "a");
+  }
+
+  //if ouput or append then fprintf
+  if (output == 1 || append == 1){
+    while(*env){
+      fprintf(fp,"%s\n", *env++);
     }
- 
-    cmd1[x] = NULL;
-    cmd2[count] = NULL;
-  }//if redirect
-  return result;
+    fclose(fp);
+  }
+  //otherwise just print to screen
+  else{
+    while(*env){
+      printf("%s\n", *env++);
+    }
+  }  
 }
 
-bool quit(string input) {
-  // Lowercase the user input
-  //  for (unsigned int i = 0; i < input.length(); i++)
-  // input[i] = tolower(input[i]);
-  return (input == "quit" || input == "exit" || input == "Exit" || input == "Quit" || input == "QUIT" ||input == "EXIT");
+
+void syserr(char * msg){
+  fprintf(stderr, "%s: %s\n", strerror(errno), msg);
+  abort();
 }
 
-int read_args(char **argv) {
-  char *cstr;
-  string arg;
-  int argc = 0;
 
-  // Read in arguments till the user hits enter
-  while (cin >> arg) {
-    
-    if (quit(arg)) {
-      cout << "Goodbye!\n";
-      exit(0);
+// check the command for any I/O redirection
+void checkIO(char **args){
+  // reset input and output and append
+  input = 0;
+  output = 0;
+  append = 0;
+
+  int i = 0;
+
+  while(args[i] != NULL){
+    if (!strcmp(args[i], "<")){           //check for input <
+      strcpy(args[i], "\0");
+      inputFile = args[i+1];
+      input = 1;
     }
-
-    // Convert that std::string into a C string.
-    cstr = new char[arg.size()+1];
-    strcpy(cstr, arg.c_str());
-    argv[argc] = cstr;
-
-    // Increment our counter of where we're at in the array of arguments.
-    argc++;
-
-    // If the user hit enter, stop reading input.
-    if (cin.get() == '\n')
+    else if (!strcmp(args[i], ">")){      //check for output >
+      outputFile = args[i+1];
+      args[i] = NULL;
+      output = 1;
       break;
+    }
+    else if (!strcmp(args[i], ">>")){     //check for append output >>
+      outputFile = args[i+1];
+      args[i] = NULL;
+      append = 1;
+      break;
+    }
+    i++;
+  }
+}
+
+//find the last non whitespace character and check if that is an ampersand
+//if there is an ampersand then make dont_wait = 1
+int checkBackground(char **args){
+  int i =0;
+  int dont_wait=0;
+  while(args[i] != NULL){
+    if (!strcmp(args[i], "&")){
+      dont_wait = 1;
+      args[i] = NULL; //remove the & and set to NULL so that the commmand will work
+    }
+    i++;
+  }
+  return dont_wait;
+}
+
+void setMyShellEnv(){
+  char home_path[1024];
+  getcwd(home_path, 1024);
+  strcat(home_path, "/myshell");
+  setenv("shell", home_path, 1);
+}
+
+void sigint_handler(int signum){
+  //give warning that the signal has been disabled
+  // wait for ENTER to be pressed before returning to the command line.
+  printf("\nCTRL+C Interrupt Signal has been disabled. To exit use the 'quit' command. Press Enter to continue...\n");
+}
+
+// the main function 
+int main(int argc, char ** argv){
+  char buf[MAX_BUFFER];
+  char * args[MAX_ARGS];
+  char ** arg;
+  const char * path;
+  char r[PATH_MAX];
+  ssize_t c = readlink( "/proc/self/exe", r, PATH_MAX );
+  if (c != -1) path = dirname(r);
+  const char * prompt = path;
+  int dont_wait = 0;
+  int status;
+
+  signal(SIGINT, sigint_handler); // catches the CTRL C signal and calls an interrupt handler
+
+
+  setMyShellEnv(); // get the shell environment
+
+  //check access first
+  if(argc > 1) {
+    freopen(argv[1], "r", stdin);
   }
 
-  // Have to have the last argument be NULL so that execvp works.
-  argv[argc] = NULL;
+  while(!feof(stdin)){
+    cout << "1730sh:" << path << "$ ";
+    // fputs(prompt, stdout);
+    if(fgets(buf, MAX_BUFFER, stdin)){
+      arg = args;
+      *arg++ = strtok(buf,SEPARATORS);
 
-  // Return the number of arguments we got.
-  return argc;
-}
+      while ((*arg++ = strtok(NULL,SEPARATORS)));
 
-string getexepath(){
-  const char * path;
-  char result[PATH_MAX];
-  ssize_t c = readlink( "/proc/self/exe", result, PATH_MAX );
-  if (c != -1) path = dirname(result);
-  return path;
-}
+      checkIO(args); //check i/o redirections
+      dont_wait = checkBackground(args); // check for background execution (that is &)
 
+      if (args[0]) {
+        // if there was an input redirection (<) 
+        if (input == 1){
+          if(!access(inputFile, R_OK)){ //check access
+            freopen(inputFile, "r", stdin); // replace the stdin with the file
+          }
+        }
 
-int main(){
+        //get the environment variables of the shell
+        if (!strcmp(args[0], "environ")) {
+          env(environ); //call helper
+          continue;
+        }
 
-  while(true){
-    
-    cout << "1730sh:" << getexepath() << "$ ";
-    argc = read_args(argv);
+	if (!strcmp(args[0],"echo")) { 
+          pid = getpid(); // get process id
+          switch(pid = fork()){
+	  case -1:
+	    syserr((char*) "fork error");
+	  case 0:
+	    setenv("parent", getenv("shell"), 1); //set parent
 
-  }//while
+	    //i/o redirection for output files
+	    if(output == 1)
+	      freopen(outputFile, "w", stdout);
+	    else if(append == 1)
+	      freopen(outputFile, "a+", stdout);
 
+	    execvp (args[0], args);  //execute in the child thread
+	    syserr((char*)"execvp err");
+	  default:                
+	    if (!dont_wait) //determine background execution wait (&)
+	      waitpid(pid, &status, WUNTRACED);
+          }
+          continue;
+        }
+	
+        if (!strcmp(args[0],"quit")) { 
+          break; //break the loop so the program returns and ends
+        }
 
+	else{
+          pid = getpid();   
+          switch (pid = fork ()) { 
+	  case -1:
+	    syserr((char*)"fork error");
+	  case 0:
+	    setenv("parent", getenv("shell"), 1); //set parent
+	    //i/o redirection
+	    if(output == 1)
+	      freopen(outputFile, "w", stdout);
+	    else if(append == 1)
+	      freopen(outputFile, "a+", stdout); 
 
+	    execvp (args[0], args); //execute in child thread
+	    syserr((char*)"exec");
+	  default:                
+	    if (!dont_wait) //determine background execution wait (&)
+	      waitpid(pid, &status, WUNTRACED);
+	  }
+          continue;
+        }
+      }
+
+    }
+
+  }
+  return 0;
 }
