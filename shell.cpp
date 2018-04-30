@@ -26,24 +26,19 @@ string getexepath(){
 }
 
 char** read(){
-  char input_char[100];
   char** argv = (char**)malloc(100);
   char*input; 
+  char*input_tok;
   size_t argc = 0;//size of argv1
   size_t buf = 0;
   getline(&input, &buf, stdin);
-  while(input != NULL){
-    cout << input << endl;
-    argv[argc] = input;
+  input_tok = strtok(input, " ");
+  while(input_tok != NULL){
+    argv[argc] = input_tok;
     argc++;
-    
-    input = strtok(NULL, " ");
-    
+    input_tok = strtok(NULL, " ");
   }
-  cout << "line 43" << endl;
-  
   argv[argc] = NULL;
-  cout << "line 46" << endl;
   
   return argv;  
 }//read
@@ -53,24 +48,20 @@ bool execute(char**argv){
   int stat;
   char const *path_str = "/bin/";
   int length = strlen(path_str) + strlen(argv[0]) + 1;
-  cout << "line 55aa" << endl;
   char*path = (char*)malloc(length);
   strcpy(path, path_str);//copy the path string into path*/
   strcat(path, argv[0]);
-  cout << "line 55" << endl;
   int i =0;
-  cout << "line 57"<< endl;
-
-  cout << *argv << endl;
-  cout << path << endl;
+  cout << argv[0] <<", " << argv[1] << endl;
   if((pid = fork()) == -1) {
     perror("FORK ERROR");
   }
   else if(pid == 0){
-    if(execvp(path,argv+1) == -1){
+    if(execvp("/bin/ls",argv) == -1){
       perror("EXEC CHILD ERROR"); 
-    }//if
     //in child
+    }//if
+
   }else{
     while(!WIFEXITED(stat) && !WIFSIGNALED(stat)){
       waitpid(pid,&stat,WUNTRACED);
@@ -93,7 +84,6 @@ void loop(){
   while(prompt){
     cout << "1730sh:" << getexepath() << "$ ";
     argv = read();    
-    cout << "line 86" << endl;
     prompt = execute(argv);
     free(argv); 
   }
