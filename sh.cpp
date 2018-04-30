@@ -55,7 +55,7 @@ bool quit(string input) {
   return (input == "quit" || input == "exit" || input == "Exit" || input == "Quit" || input == "QUIT" ||input == "EXIT");
 }
 
-int read_args(char **argv) {
+char** read_args(char **argv) {
   char *cstr;
   string arg;
   int argc = 0;
@@ -83,10 +83,43 @@ int read_args(char **argv) {
 
   // Have to have the last argument be NULL so that execvp works.
   argv[argc] = NULL;
-
-  // Return the number of arguments we got.
-  return argc;
+  return argv;
 }
+
+
+bool execute(char**argv){
+  pid_t pid;
+  int stat;
+  char const *path_str = "/bin/";
+  int length = strlen(path_str) + strlen(argv[0]) + 1;
+  char*path = (char*)malloc(length);
+  strcpy(path, path_str);//copy the path string into path*/
+  strcat(path, argv[0]);
+  int i =0;
+  cout << argv[0] <<", " << argv[1] << endl;
+  if((pid = fork()) == -1) {
+    perror("FORK ERROR");
+  }
+  else if(pid == 0){
+    if(execvp(path,argv) == -1){
+      perror("EXEC CHILD ERROR"); 
+    //in child
+    }//if
+
+  }else{
+    while(!WIFEXITED(stat) && !WIFSIGNALED(stat)){
+      waitpid(pid,&stat,WUNTRACED);
+      wait(NULL);
+      cout << "PARENT" << endl;
+      
+      //in parent
+    }
+  }  
+  //  free(path);
+  return true;
+  
+}
+
 
 string getexepath(){
   const char * path;
@@ -98,11 +131,12 @@ string getexepath(){
 
 
 int main(){
-
-  while(true){
-    
+  bool run = true;
+  char**command_args;
+  while(run){
     cout << "1730sh:" << getexepath() << "$ ";
-    argc = read_args(argv);
+    command_args = read_args(argv);
+    run = execute(command_args);
 
   }//while
 
