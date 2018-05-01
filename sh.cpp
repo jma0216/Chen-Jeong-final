@@ -14,14 +14,12 @@
 
 #define MAX_BUFFER 1024     // max line buffer
 #define MAX_ARGS 64         // max # args
-#define SEPARATORS " \t\n"  // token sparators
 using namespace std;
 
-void cd(char *d);
 void env(char **e);
 void syserr(char * msg);
-void checkIO(char **args);
-int checkBackground(char **args);
+void io(char **args);
+int checkAmp(char **args);
 
 extern char **environ; //env variables
 extern int errno;      // system error number
@@ -29,25 +27,25 @@ pid_t pid;             // process ID
 int status;             // status for fork/exec process
 int in, out, input, output, append; // I/O redirection parameters
 char *inputFile, *outputFile; // I/O input and output files
-FILE *fp;             //pointer to file for ouput file  
 
 // get the environment variables
 void env(char **e){
+  FILE *fd;
   char **env = e;
   // IO redirection
   if (output == 1){
-    fp = fopen(outputFile, "w");
+    fd = fopen(outputFile, "w");
   }
   else if (append == 1){
-    fp = fopen(outputFile, "a");
+    fd = fopen(outputFile, "a");
   }
 
   //if ouput or append then fprintf
   if (output == 1 || append == 1){
     while(*env){
-      fprintf(fp,"%s\n", *env++);
+      fprintf(fd,"%s\n", *env++);
     }
-    fclose(fp);
+    fclose(fd);
   }
   //otherwise just print to screen
   else{
@@ -57,14 +55,13 @@ void env(char **e){
   }  
 }
 
-
 void syserr(char * msg){
   fprintf(stderr, "%s: %s\n", strerror(errno), msg);
   abort();
 }
 
 // check the command for any I/O redirection
-void checkIO(char **args){
+void io(char **args){
   // reset input and output and append
   input = 0;
   output = 0;
@@ -94,19 +91,17 @@ void checkIO(char **args){
   }
 }
 
-//find the last non whitespace character and check if that is an ampersand
-//if there is an ampersand then make dont_wait = 1
-int checkBackground(char **args){
-  int i =0;
-  int dont_wait=0;
+int checkAmp(char **args){
+  int i = 0;
+  int found = 0;
   while(args[i] != NULL){
     if (!strcmp(args[i], "&")){
-      dont_wait = 1;
+      found = 1;
       args[i] = NULL; //remove the & and set to NULL so that the commmand will work
     }
     i++;
   }
-  return dont_wait;
+  return found;
 }
 
 void sigint_handler(int signum){
@@ -125,7 +120,7 @@ int main(int argc, char ** argv){
   ssize_t c = readlink( "/proc/self/exe", r, PATH_MAX );
   if (c != -1) path = dirname(r);
   const char * prompt = path;
-  int dont_wait = 0;
+  int found = 0;
   int status;
 
   signal(SIGINT, sigint_handler); // catches the CTRL C signal and calls an interrupt handler
@@ -144,8 +139,8 @@ int main(int argc, char ** argv){
 
       while ((*arg++ = strtok(NULL, " \t\n")));
 
-      checkIO(args); //check i/o redirections
-            dont_wait = checkBackground(args); // check for background execution (that is &)
+      io(args); //check i/o redirections
+      found = checkAmp(args); // check to see &
 
       if (args[0]) {
         // if there was an input redirection (<) 
@@ -178,7 +173,7 @@ int main(int argc, char ** argv){
 	    execvp (args[0], args);  //execute in the child thread
 	    syserr((char*)"execvp error");
 	  }else{                
-	    if (!dont_wait) //determine background execution wait (&)
+	    if (!found) //determine background execution wait (&)
 	      waitpid(pid, &status, WUNTRACED);
 	  }
           continue;
@@ -195,7 +190,7 @@ int main(int argc, char ** argv){
 	  case -1:
 	    syserr((char*)"fork error");
 	
-	  case 0:(pid = fork())
+	  case 0:
 	    setenv("parent", getenv("shell"), 1); //set parent
 	    if(output == 1)
 	      freopen(outputFile, "w", stdout);
@@ -205,7 +200,7 @@ int main(int argc, char ** argv){
 	    execvp (args[0], args); //execute in child thread
 	    syserr((char*)"execvp error");
 	  default:                
-	    if (!dont_wait) //determine background execution wait (&)
+	    if (!found) //determine background execution wait (&)
 	      waitpid(pid, &status, WUNTRACED);
 	  }
           continue;
