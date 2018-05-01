@@ -19,7 +19,6 @@ using namespace std;
 
 void cd(char *d);
 void env(char **e);
-void syserr(char * msg);
 void checkIO(char **args);
 int checkBackground(char **args);
 
@@ -55,12 +54,6 @@ void env(char **e){
       printf("%s\n", *env++);
     }
   }  
-}
-
-
-void syserr(char * msg){
-  fprintf(stderr, "%s: %s\n", strerror(errno), msg);
-  abort();
 }
 
 // check the command for any I/O redirection
@@ -109,12 +102,6 @@ int checkBackground(char **args){
   return dont_wait;
 }
 
-void sigint_handler(int signum){
-  //give warning that the signal has been disabled
-  // wait for ENTER to be pressed before returning to the command line.
-  printf("\nCTRL+C Interrupt Signal has been disabled. To exit use the 'quit' command. Press Enter to continue...\n");
-}
-
 // the main function 
 int main(int argc, char ** argv){
   char buf[MAX_BUFFER];
@@ -127,8 +114,6 @@ int main(int argc, char ** argv){
   const char * prompt = path;
   int dont_wait = 0;
   int status;
-
-  signal(SIGINT, sigint_handler); // catches the CTRL C signal and calls an interrupt handler
 
   //check access first
   if(argc > 1) {
@@ -165,7 +150,8 @@ int main(int argc, char ** argv){
           pid = getpid(); // get process id
 
           if((pid = fork()) == -1){
-	    syserr((char*) "fork error");
+	    perror("FORK ERROR");
+	    abort();
 	  }else if(pid == 0){
 	    setenv("parent", getenv("shell"), 1); //set parent
 	    
@@ -175,8 +161,10 @@ int main(int argc, char ** argv){
 	    else if(append == 1)
 	      freopen(outputFile, "a+", stdout);
 	    
-	    execvp (args[0], args);  //execute in the child thread
-	    syserr((char*)"execvp error");
+	    if(execvp (args[0], args) == -1){
+	      perror("EXEC CHILD ERROR");
+	      abort();
+	    }  //execute in the child thread
 	  }else{                
 	    if (!dont_wait) //determine background execution wait (&)
 	      waitpid(pid, &status, WUNTRACED);
@@ -191,7 +179,8 @@ int main(int argc, char ** argv){
 	else{
 	  pid = getpid();   
           if((pid = fork ())== -1) { 
-	    syserr((char*)"fork error");
+	    perror("FORK ERROR");
+	    abort();
 	  }else if(pid == 0){
 	    setenv("parent", getenv("shell"), 1); //set parent
 	    if(output == 1)
@@ -199,8 +188,10 @@ int main(int argc, char ** argv){
 	    else if(append == 1)
 	      freopen(outputFile, "a+", stdout); 
 	    
-	    execvp (args[0], args); //execute in child thread
-	    syserr((char*)"execvp error");
+	    if(execvp (args[0], args) == -1){
+	      perror("EXEC CHILD ERROR");
+	      abort();
+	    } //execute in child thread
 	  }else{                
 	    if (!dont_wait) //determine background execution wait (&)
 	      waitpid(pid, &status, WUNTRACED);
