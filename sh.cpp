@@ -17,7 +17,6 @@
 using namespace std;
 
 void env(char **e);
-void syserr(char * msg);
 void io(char **args);
 int checkAmp(char **args);
 
@@ -53,11 +52,6 @@ void env(char **e){
       printf("%s\n", *env++);
     }
   }  
-}
-
-void syserr(char * msg){
-  fprintf(stderr, "%s: %s\n", strerror(errno), msg);
-  abort();
 }
 
 // check the command for any I/O redirection
@@ -104,12 +98,6 @@ int checkAmp(char **args){
   return found;
 }
 
-void sigint_handler(int signum){
-  //give warning that the signal has been disabled
-  // wait for ENTER to be pressed before returning to the command line.
-  printf("\nCTRL+C Interrupt Signal has been disabled. To exit use the 'quit' command. Press Enter to continue...\n");
-}
-
 // the main function 
 int main(int argc, char ** argv){
   char buf[MAX_BUFFER];
@@ -122,8 +110,6 @@ int main(int argc, char ** argv){
   const char * prompt = path;
   int found = 0;
   int status;
-
-  signal(SIGINT, sigint_handler); // catches the CTRL C signal and calls an interrupt handler
 
   //check access first
   if(argc > 1) {
@@ -149,18 +135,19 @@ int main(int argc, char ** argv){
             freopen(inputFile, "r", stdin); // replace the stdin with the file
           }//if access
         }//if input = 1
-
+	
         //get the environment variables of the shell
         if (!strcmp(args[0], "environ")) {
           env(environ); //call helper
           continue;
         }//if environ
-
+	
 	if (!strcmp(args[0],"echo")) { 
           pid = getpid(); // get process id
 
           if((pid = fork()) == -1){
-	    syserr((char*) "fork error");
+	    perror("FORK ERROR");
+	    abort();
 	  }else if(pid == 0){
 	    setenv("parent", getenv("shell"), 1); //set parent
 	    
@@ -170,8 +157,10 @@ int main(int argc, char ** argv){
 	    else if(append == 1)
 	      freopen(outputFile, "a+", stdout);
 	    
-	    execvp (args[0], args);  //execute in the child thread
-	    syserr((char*)"execvp error");
+	    if(execvp (args[0], args) == -1){
+	      perror("EXEC CHILD ERROR");
+	      abort();
+	    }  //execute in the child thread
 	  }else{                
 	    if (!found) //determine background execution wait (&)
 	      waitpid(pid, &status, WUNTRACED);
@@ -184,30 +173,32 @@ int main(int argc, char ** argv){
         }
 
 	else{
-          pid = getpid();
-	  
-          switch(pid = fork ()){
-	  case -1:
-	    syserr((char*)"fork error");
-	
-	  case 0:
+	  pid = getpid();   
+          if((pid = fork ())== -1) { 
+	    perror("FORK ERROR");
+	    abort();
+	  }else if(pid == 0){
 	    setenv("parent", getenv("shell"), 1); //set parent
 	    if(output == 1)
 	      freopen(outputFile, "w", stdout);
 	    else if(append == 1)
 	      freopen(outputFile, "a+", stdout); 
-	    
-	    execvp (args[0], args); //execute in child thread
-	    syserr((char*)"execvp error");
-	  default:                
+
+	    if(execvp (args[0], args) == -1){
+	      perror("EXEC CHILD ERROR");
+	      abort();
+	    } //execute in child thread
+	  }else{                
 	    if (!found) //determine background execution wait (&)
 	      waitpid(pid, &status, WUNTRACED);
-	  }
+	  }	  
+	}
           continue;
-        }
-      }
-    }  
-  }
-  return 0;
-}
+      }//if args[0]
+    }//if fgets
 
+  }//while feof
+
+
+  return 0;
+}//main
