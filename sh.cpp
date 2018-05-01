@@ -22,7 +22,6 @@ void env(char **e);
 void syserr(char * msg);
 void checkIO(char **args);
 int checkBackground(char **args);
-void setMyShellEnv();
 
 extern char **environ; //env variables
 extern int errno;      // system error number
@@ -110,13 +109,6 @@ int checkBackground(char **args){
   return dont_wait;
 }
 
-void setMyShellEnv(){
-  char home_path[1024];
-  getcwd(home_path, 1024);
-  strcat(home_path, "/myshell");
-  setenv("shell", home_path, 1);
-}
-
 void sigint_handler(int signum){
   //give warning that the signal has been disabled
   // wait for ENTER to be pressed before returning to the command line.
@@ -138,9 +130,6 @@ int main(int argc, char ** argv){
 
   signal(SIGINT, sigint_handler); // catches the CTRL C signal and calls an interrupt handler
 
-
-  setMyShellEnv(); // get the shell environment
-
   //check access first
   if(argc > 1) {
     freopen(argv[1], "r", stdin);
@@ -148,15 +137,15 @@ int main(int argc, char ** argv){
 
   while(!feof(stdin)){
     cout << "1730sh:" << path << "$ ";
-    // fputs(prompt, stdout);
+
     if(fgets(buf, MAX_BUFFER, stdin)){
       arg = args;
-      *arg++ = strtok(buf,SEPARATORS);
+      *arg++ = strtok(buf," \t\n");
 
-      while ((*arg++ = strtok(NULL,SEPARATORS)));
+      while ((*arg++ = strtok(NULL, " \t\n")));
 
       checkIO(args); //check i/o redirections
-      dont_wait = checkBackground(args); // check for background execution (that is &)
+            dont_wait = checkBackground(args); // check for background execution (that is &)
 
       if (args[0]) {
         // if there was an input redirection (<) 
@@ -174,6 +163,7 @@ int main(int argc, char ** argv){
 	
 	if (!strcmp(args[0],"echo")) { 
           pid = getpid(); // get process id
+
           if((pid = fork()) == -1){
 	    syserr((char*) "fork error");
 	  }else if(pid == 0){
@@ -199,12 +189,11 @@ int main(int argc, char ** argv){
         }
 
 	else{
-          pid = getpid();   
+	  pid = getpid();   
           if((pid = fork ())== -1) { 
 	    syserr((char*)"fork error");
 	  }else if(pid == 0){
 	    setenv("parent", getenv("shell"), 1); //set parent
-	    //i/o redirection
 	    if(output == 1)
 	      freopen(outputFile, "w", stdout);
 	    else if(append == 1)
