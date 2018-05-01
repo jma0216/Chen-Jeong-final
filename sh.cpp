@@ -152,35 +152,37 @@ int main(int argc, char ** argv){
         if (input == 1){
           if(!access(inputFile, R_OK)){ //check access
             freopen(inputFile, "r", stdin); // replace the stdin with the file
-          }
-        }
+          }//if access
+        }//if input = 1
 
         //get the environment variables of the shell
         if (!strcmp(args[0], "environ")) {
           env(environ); //call helper
           continue;
-        }
+        }//if environ
 
 	if (!strcmp(args[0],"echo")) { 
           pid = getpid(); // get process id
-	  switch(pid = fork()){
-	  case -1: syserr((char*) "fork error");
-	  case 0: setenv("parent", getenv("shell"), 1); //set parent
+
+          if((pid = fork()) == -1){
+	    syserr((char*) "fork error");
+	  }else if(pid == 0){
+	    setenv("parent", getenv("shell"), 1); //set parent
 	    
 	    //i/o redirection for output files
-	  if(output == 1)
-	    freopen(outputFile, "w", stdout);
-	  else if(append == 1)
-	    freopen(outputFile, "a+", stdout);
-	  
-	  execvp (args[0], args);  //execute in the child thread
-	  syserr((char*)"execvp err");
-	  default:
+	    if(output == 1)
+	      freopen(outputFile, "w", stdout);
+	    else if(append == 1)
+	      freopen(outputFile, "a+", stdout);
+	    
+	    execvp (args[0], args);  //execute in the child thread
+	    syserr((char*)"execvp error");
+	  }else{                
 	    if (!dont_wait) //determine background execution wait (&)
 	      waitpid(pid, &status, WUNTRACED);
+	  }
+          continue;
 	}
-      	continue;
-      }
 	
         if (!strcmp(args[0],"quit")) { 
           break; //break the loop so the program returns and ends
@@ -201,13 +203,13 @@ int main(int argc, char ** argv){
 	      freopen(outputFile, "a+", stdout); 
 	    
 	    execvp (args[0], args); //execute in child thread
-	    syserr((char*)"exec");
-	  }//else if
-	default:
-	  if (!dont_wait) //determine background execution wait (&)
-	    waitpid(pid, &status, WUNTRACED);
-	}
-	continue;
+	    syserr((char*)"execvp error");
+	  default:                
+	    if (!dont_wait) //determine background execution wait (&)
+	      waitpid(pid, &status, WUNTRACED);
+	  }
+          continue;
+        }
       }
     }  
   }
