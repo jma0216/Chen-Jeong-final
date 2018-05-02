@@ -1,17 +1,16 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <unistd.h>
-#include <sys/wait.h>
-#include <sys/types.h>
 #include <dirent.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <errno.h>
 #include <signal.h>
 #include <iostream>
 #include <libgen.h>
-         
+#include <sys/wait.h>
+#include <sys/types.h>
 using namespace std;
 
 void env(char **e);
@@ -19,9 +18,13 @@ void io(char **args);
 int checkAmp(char **args);
 
 extern char **environ; 
+int a;
+int b;
+int c;
 pid_t pid;            
 int status;            
-int in, out, a, b, c; 
+int in;
+int out;
 char *inFile, *outFile; 
 
 
@@ -44,14 +47,14 @@ void io(char ** argv){
       a = 1;
     }
     else if(!strcmp(argv[i], ">>")){     //output redirection with appending
-      outFile = argv[i+1];
       argv[i] = NULL;
+      outFile = argv[i+1];
       c = 1;
       break;
     }
     else if(!strcmp(argv[i], ">")){      //output redirection
-      outFile = argv[i+1];
       argv[i] = NULL;
+      outFile = argv[i+1];
       b = 1;
       break;
     }
@@ -115,9 +118,11 @@ int main(int argc, char ** argv){
   char * args[20];
   char ** arg;
   const char * path;
+
   char r[PATH_MAX];
   ssize_t c = readlink("/proc/self/exe", r, PATH_MAX);
-  if (c != -1) path = dirname(r);
+  if (c != -1) path = dirname(r);                        //creating path to pwd
+
   int found = 0;
   int status;
 
@@ -140,7 +145,7 @@ int main(int argc, char ** argv){
       if (args[0]) {
         // Input redirection
         if (a == 1){
-          if(!access(inFile, R_OK)){ //Access ok?
+          if(!access(inFile, R_OK)){     //Checks access 
             freopen(inFile, "r", stdin); // Redirect stdin with file
           }//if access
         }//if input=1
@@ -149,7 +154,7 @@ int main(int argc, char ** argv){
 	  char * v = args[1];
 	  char *string;
 	
-	  string = (char*)malloc(strlen(v));
+	  string = (char*)malloc(strlen(v));  //allocates space
 	  if(!string){
 	    cout << stderr << "memory error";
 	      exit(1);
@@ -159,8 +164,8 @@ int main(int argc, char ** argv){
 	  strcat(string," ");
 	  printf("Setting env variable.. %s \n",string);
 	  ;
-	  if(putenv(string)!=0){
-	    fprintf(stderr,"putenv fail ");
+	  if(putenv(string)!= 0){         //error in setting variable
+	    cout << stderr << endl;
 	    free(string);
 	    exit(1);
 	  }
@@ -177,7 +182,7 @@ int main(int argc, char ** argv){
           pid = getpid(); // get process id
 	  
           if((pid = fork()) == -1){
-	    perror("FORK ERROR");
+	    perror("fork error");
 	    abort();
 	  }
 	  else if(pid == 0){
@@ -192,10 +197,11 @@ int main(int argc, char ** argv){
 	      freopen(outFile, "a+", stdout);
 	    
 	    if(execvp (args[0], args) == -1){
-	      perror("EXEC CHILD ERROR");
+	      perror("Execution child error");
 	      abort();
 	    }
 	  }
+
 	  else{                
 	    if (!found) 
 	      waitpid(pid, &status, WUNTRACED); //calls wait
@@ -204,7 +210,7 @@ int main(int argc, char ** argv){
 	}
 	
         if (!strcmp(args[0],"exit")) { 
-          break; //break the loop so the program returns and ends
+          break; //break out of shell loop
         }
 
 	else{
@@ -214,18 +220,18 @@ int main(int argc, char ** argv){
 	    abort();
 	  }
 	  else if(pid == 0){
-	    setenv("parent", getenv("shell"), 1); //set parent
+	    setenv("parent", getenv("shell"), 1); //setting parent
 	    if(b == 1)
 	      freopen(outFile, "w", stdout);
 	    else if(c == 1)
 	      freopen(outFile, "a+", stdout); 
 	    
 	    if(execvp (args[0], args) == -1){
-	      perror("EXEC CHILD ERROR");
+	      perror("Execution child error");
 	      abort();
-	    } //execute in child thread
+	    } //exec in child
 	  }else{                
-	    if (!found) //determine background execution wait (&)
+	    if (!found) //wait
 	      waitpid(pid, &status, WUNTRACED);
 	  }	  
 	}
