@@ -11,109 +11,117 @@
 #include <signal.h>
 #include <iostream>
 #include <libgen.h>
-
-#define MAX_BUFFER 1024     // max line buffer
-#define MAX_ARGS 20         // max # args
+         
 using namespace std;
 
 void env(char **e);
 void io(char **args);
 int checkAmp(char **args);
 
-extern char **environ; //env variables
+extern char **environ; 
+pid_t pid;            
+int status;            
+int in, out, a, b, c; 
+char *inFile, *outFile; 
 
-pid_t pid;             // process ID
-int status;             // status for fork/exec process
-int in, out, a, b, c; // I/O redirection parameters
-char *inputFile, *outputFile; // I/O input and output files
 
-// get the environment variables
-void env(char **e){
-  FILE *fd;
-  char **env = e;
-
-  // IO redirection
-  if (b == 1){
-    fd = fopen(outputFile, "w");
-  }
-  else if (c == 1){
-    fd = fopen(outputFile, "a");
-  }
-
-  //if ouput or append then fprintf
-  if (b == 1 || c == 1){
-    while(*env){
-      fprintf(fd,"%s\n", *env++);
-    }
-    fclose(fd);
-  }
-  //otherwise just print to screen
-  else{
-    while(*env){
-      printf("%s\n", *env++);
-      
-    }
-  }  
-}
-
-// check the command for any I/O redirection
-void io(char **args){
+/*
+ * @param char ** args- pointer to a pointer to a char
+ *
+ * This function goes through argv and checks whether there is a 
+ * I/O redirection and if there is which one.
+ */
+void io(char ** argv){
   // reset input and output and append
   a = 0;
   b = 0;
   c = 0;
-
   int i = 0;
-
-  while(args[i] != NULL){
-    if (!strcmp(args[i], "<")){           //check for input <
-      strcpy(args[i], "\0");
-      inputFile = args[i+1];
+  while(argv[i] != NULL){
+    if (!strcmp(argv[i], "<")){           //input redirection
+      strcpy(argv[i], "\0");
+      inFile = argv[i+1];
       a = 1;
     }
-    else if (!strcmp(args[i], ">")){      //check for output >
-      outputFile = args[i+1];
-      args[i] = NULL;
-      b = 1;
+    else if(!strcmp(argv[i], ">>")){     //output redirection with appending
+      outFile = argv[i+1];
+      argv[i] = NULL;
+      c = 1;
       break;
     }
-    else if (!strcmp(args[i], ">>")){     //check for append output >>
-      outputFile = args[i+1];
-      args[i] = NULL;
-      c = 1;
+    else if(!strcmp(argv[i], ">")){      //output redirection
+      outFile = argv[i+1];
+      argv[i] = NULL;
+      b = 1;
       break;
     }
     i++;
   }
 }
 
-int checkAmp(char **args){
+/*
+ * @param argv
+ *
+ * Makes sure that the end of argv ends with NULL
+ *
+ */
+int checkAmp(char **argv){
   int i = 0;
   int found = 0;
-  while(args[i] != NULL){
-    if (!strcmp(args[i], "&")){
+  while(argv[i] != NULL){
+    if (!strcmp(argv[i], "&")){
       found = 1;
-      args[i] = NULL; //remove the & and set to NULL so that the commmand will work
+      argv[i] = NULL; //Replace & with NULL
     }
     i++;
   }
   return found;
 }
 
+/*
+ * @param char **e
+ * 
+ * Gets the environmental variables and prints it on the screen
+ *
+ */
+void env(char **e){
+  FILE *fd;
+  char **env = e;
+  
+  if (b == 1){
+    fd = fopen(outFile, "w");
+  }
+  else if (c == 1){
+    fd = fopen(outFile, "a");
+  }
+  
+  if (b == 1 || c == 1){
+    while(*env){
+      cout << fd << *env++ << endl;     //append fd and print
+    }
+    fclose(fd);
+  }
+  else{
+    while(*env){
+      cout << *env++ << endl;           //else print
+      
+    }
+  }  
+}
+
 // the main function 
 int main(int argc, char ** argv){
-  char buf[MAX_BUFFER];
-  char * args[MAX_ARGS];
+  char buf[1024];
+  char * args[20];
   char ** arg;
   const char * path;
   char r[PATH_MAX];
-  ssize_t c = readlink( "/proc/self/exe", r, PATH_MAX );
+  ssize_t c = readlink("/proc/self/exe", r, PATH_MAX);
   if (c != -1) path = dirname(r);
   const char * prompt = path;
   int found = 0;
   int status;
 
-  //check access first
   if(argc > 1) {
     freopen(argv[1], "r", stdin);
   }
@@ -121,43 +129,44 @@ int main(int argc, char ** argv){
   while(!feof(stdin)){
     cout << "1730sh:" << path << "$ ";
 
-    if(fgets(buf, MAX_BUFFER, stdin)){
+    if(fgets(buf, 1024, stdin)){
       arg = args;
       *arg++ = strtok(buf," \t\n");
 
       while ((*arg++ = strtok(NULL, " \t\n")));
 
-      io(args); //check i/o redirections
-      found = checkAmp(args); // check to see &
+      io(args); //I/O Redirection
+      found = checkAmp(args); //Make sure last space is null
 
       if (args[0]) {
-        // if there was an input redirection (<) 
+        // Input redirection
         if (a == 1){
-          if(!access(inputFile, R_OK)){ //check access
-            freopen(inputFile, "r", stdin); // replace the stdin with the file
+          if(!access(inFile, R_OK)){ //Access ok?
+            freopen(inFile, "r", stdin); // Redirect stdin with file
           }//if access
-        }//if input = 1
+        }//if input=1
 	
-	if(!strcmp(args[0], "export")){
-	  char * var=args[1];
-	  char *value=getenv(var);
+	if(!strcmp(args[0], "export")){ //Add and change environment variables using export
+	  char * v = args[1];
+	  char *val = getenv(v);
 	  char *string;
-	  value=argv[2];
-	  string = (char*)malloc(strlen(var));
-	  if(!string)
-            {
-	      fprintf(stderr,"memory error");
-	      exit(1);
-            }   
-	  strcpy(string,var);
-	  strcat(string," ");
-	  printf(" ",string);
-	  if(putenv(string)!=0){
-	      fprintf(stderr,"putenv fail ");
-	      free(string);
+	 
+	  val = argv[2];
+	  string = (char*)malloc(strlen(v));
+	  if(!string){
+	    cout << stderr << "memory error";
 	      exit(1);
             }
-	  value = getenv(var);
+	  
+	  strcpy(string,v);
+	  strcat(string," ");
+	  printf("",string);
+	  if(putenv(string)!=0){
+	    fprintf(stderr,"putenv fail ");
+	    free(string);
+	    exit(1);
+	  }
+	  val = getenv(v);
 	  continue;
 	}
 
@@ -169,26 +178,30 @@ int main(int argc, char ** argv){
 	
 	if (!strcmp(args[0],"echo")) { 
           pid = getpid(); // get process id
-
+	  
           if((pid = fork()) == -1){
 	    perror("FORK ERROR");
 	    abort();
-	  }else if(pid == 0){
-	    setenv("parent", getenv("shell"), 1); //set parent
+	  }
+	  else if(pid == 0){
+	    setenv("parent", getenv("shell"), 1); 
 	    
-	    //i/o redirection for output files
+	    //i/o redirection for output
 	    if(b == 1)
-	      freopen(outputFile, "w", stdout);
+	      freopen(outFile, "w", stdout);
+	    
+	    //i/o redirection for input
 	    else if(a == 1)
-	      freopen(outputFile, "a+", stdout);
+	      freopen(outFile, "a+", stdout);
 	    
 	    if(execvp (args[0], args) == -1){
 	      perror("EXEC CHILD ERROR");
 	      abort();
-	    }  //execute in the child thread
-	  }else{                
-	    if (!found) //determine background execution wait (&)
-	      waitpid(pid, &status, WUNTRACED);
+	    }
+	  }
+	  else{                
+	    if (!found) 
+	      waitpid(pid, &status, WUNTRACED); //calls wait
 	  }
           continue;
 	}
@@ -202,13 +215,14 @@ int main(int argc, char ** argv){
           if((pid = fork ())== -1) { 
 	    perror("FORK ERROR");
 	    abort();
-	  }else if(pid == 0){
+	  }
+	  else if(pid == 0){
 	    setenv("parent", getenv("shell"), 1); //set parent
 	    if(b == 1)
-	      freopen(outputFile, "w", stdout);
+	      freopen(outFile, "w", stdout);
 	    else if(c == 1)
-	      freopen(outputFile, "a+", stdout); 
-
+	      freopen(outFile, "a+", stdout); 
+	    
 	    if(execvp (args[0], args) == -1){
 	      perror("EXEC CHILD ERROR");
 	      abort();
@@ -218,12 +232,9 @@ int main(int argc, char ** argv){
 	      waitpid(pid, &status, WUNTRACED);
 	  }	  
 	}
-          continue;
+	continue;
       }//if args[0]
     }//if fgets
-
   }//while feof
-
-
   return 0;
 }//main
