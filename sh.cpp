@@ -118,7 +118,6 @@ int main(int argc, char ** argv){
   char r[PATH_MAX];
   ssize_t c = readlink("/proc/self/exe", r, PATH_MAX);
   if (c != -1) path = dirname(r);
-  const char * prompt = path;
   int found = 0;
   int status;
 
@@ -148,10 +147,8 @@ int main(int argc, char ** argv){
 	
 	if(!strcmp(args[0], "export")){ //Add and change environment variables using export
 	  char * v = args[1];
-	  char *val = getenv(v);
 	  char *string;
-	 
-	  val = argv[2];
+	
 	  string = (char*)malloc(strlen(v));
 	  if(!string){
 	    cout << stderr << "memory error";
@@ -160,13 +157,13 @@ int main(int argc, char ** argv){
 	  
 	  strcpy(string,v);
 	  strcat(string," ");
-	  printf("",string);
+	  printf("Setting env variable.. %s \n",string);
+	  ;
 	  if(putenv(string)!=0){
 	    fprintf(stderr,"putenv fail ");
 	    free(string);
 	    exit(1);
 	  }
-	  val = getenv(v);
 	  continue;
 	}
 
