@@ -72,15 +72,14 @@ int checkAmp(char **argv){
   int i = 0;
   int found = 0;
   while(argv[i] != NULL){
-    if (!strcmp(argv[i], "&")){
-      found = 1;
-      argv[i] = NULL; //Replace & with NULL
-    }
-    i++;
+  if (!strcmp(argv[i], "&")){
+    found = 1;
+    argv[i] = NULL; //Replace & with NULL
+  }
+  i++;
   }
   return found;
 }
-
 /*
  * @param char **e
  * 
@@ -106,8 +105,7 @@ void env(char **e){
   }
   else{
     while(*env){
-      cout << *env++ << endl;           //else print
-      
+      cout << *env++ << endl;           //else print 
     }
   }  
 }
@@ -125,18 +123,17 @@ int main(int argc, char ** argv){
 
   int found = 0;
   int status;
-
+  /*
   if(argc > 1) {
     freopen(argv[1], "r", stdin);
   }
-
+  */
   while(!feof(stdin)){
     cout << "1730sh:" << path << "$ ";
 
     if(fgets(buf, 1024, stdin)){
       arg = args;
       *arg++ = strtok(buf," \t\n");
-
       while ((*arg++ = strtok(NULL, " \t\n")));
 
       io(args); //I/O Redirection
@@ -149,7 +146,7 @@ int main(int argc, char ** argv){
             freopen(inFile, "r", stdin); // Redirect stdin with file
           }//if access
         }//if input=1
-	
+		
 	if(!strcmp(args[0], "export")){ //Add and change environment variables using export
 	  char * v = args[1];
 	  char *string;
@@ -171,7 +168,7 @@ int main(int argc, char ** argv){
 	  }
 	  continue;
 	}
-
+	
         //get the environment variables of the shell
         if (!strcmp(args[0], "env")) {
           env(environ); 
