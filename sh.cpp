@@ -4,31 +4,27 @@
 #include <errno.h>
 #include <unistd.h>
 #include <dirent.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <iostream>
 #include <libgen.h>
 #include <sys/wait.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 using namespace std;
 
 void env(char **e);
 void io(char **args);
 int checkAmp(char **args);
 
-#define MAX_BUFFER 1024     // max line buffer
-#define MAX_ARGS 64   
-
 extern char **environ; 
 int a;
 int b;
 int c;
 pid_t pid;            
-int status;            
 int in;
 int out;
 char *inFile, *outFile; 
-
+int status;
 
 /*
  * @param char ** args- pointer to a pointer to a char
@@ -88,7 +84,7 @@ int checkAmp(char **argv){
  * Gets the environmental variables and prints it on the screen
  *
  */
-void env(char **environ){
+void listEnv(char **environ){
   FILE *fd;
   char **env = environ;
   
@@ -102,35 +98,34 @@ void env(char **environ){
   if (b == 1 || c == 1){
     while(*env){
       fprintf(fd,"%s\n", *env++);
-      //      cout << fd << *env++ << endl;     //append fd and print
     }
     fclose(fd);
   }
   else{
     while(*env){
       printf("%s\n", *env++);
-      //      cout << *env++ << endl;           //else print 
     }
   }  
 }
 
 // the main function 
 int main(int argc, char ** argv){
-  char buf[MAX_BUFFER];
-  char * args[MAX_ARGS];
+  
+  char buf[1024];
+  char * args[20];
   char ** arg;
-  char result[ PATH_MAX ]; 
-  ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
-  const char *path;
-  if (count != -1) {
-    path = dirname(result);
-  }
   int found = 0;
   int status;
+  char max[PATH_MAX]; 
+  ssize_t count = readlink("/proc/self/exe", max, PATH_MAX);
+  const char *path;
+  if (count != -1) {
+    path = dirname(max);
+  }
  
   while(!feof(stdin)){
     cout << "1730sh" << path << "$ ";
-     if(fgets(buf, MAX_BUFFER, stdin)){
+     if(fgets(buf, 1024, stdin)){
       arg = args;
       *arg++ = strtok(buf," \t\n");
       while ((*arg++ = strtok(NULL, " \t\n")));
@@ -168,7 +163,7 @@ int main(int argc, char ** argv){
 	
         //get the environment variables of the shell
         if (!strcmp(args[0], "env")) {
-          env(environ); 
+          listEnv(environ); 
           continue;
         }//if environ
 	
