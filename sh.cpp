@@ -173,7 +173,7 @@ int main(int argc, char ** argv){
           if((pid = fork()) == -1){
 	    perror("fork error");
 	    abort();
-	  }
+	  }//fork 
 	  else if(pid == 0){
 	    setenv("parent", getenv("shell"), 1); 
 	        
@@ -188,7 +188,7 @@ int main(int argc, char ** argv){
 	    if(execvp (args[0], args) == -1){
 	      perror("Execution child error");
 	      abort();
-	    }
+	    }//execute command
 	  } 
 	  else{                
 	    if (!found) 
@@ -206,12 +206,12 @@ int main(int argc, char ** argv){
           if((pid = fork ())== -1) { 
 	    perror("FORK ERROR");
 	    abort();
-	  }
+	  }//fork
 	  else if(pid == 0){
 	    setenv("parent", getenv("shell"), 1); //setting parent
-	    if(b == 1)
+	    if(b == 1)//output write
 	      freopen(outFile, "w", stdout);
-	    else if(c == 1)
+	    else if(c == 1)//append write
 	      freopen(outFile, "a+", stdout); 
 	        
 	    if(execvp (args[0], args) == -1){
