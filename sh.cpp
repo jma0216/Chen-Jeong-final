@@ -6,7 +6,6 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <signal.h>
 #include <iostream>
 #include <libgen.h>
 #include <sys/wait.h>
@@ -16,6 +15,9 @@ using namespace std;
 void env(char **e);
 void io(char **args);
 int checkAmp(char **args);
+
+#define MAX_BUFFER 1024     // max line buffer
+#define MAX_ARGS 64   
 
 extern char **environ; 
 int out;
@@ -46,18 +48,18 @@ void io(char ** argv){
       inFile = argv[i+1];
       in = 1;
     }
-    else if(!strcmp(argv[i], ">>")){     //output redirection with appending
-      argv[i] = NULL;
-      outFile = argv[i+1];
-      out_a = 1;
-      break;
-    }
     else if(!strcmp(argv[i], ">")){      //output redirection
-      argv[i] = NULL;
       outFile = argv[i+1];
-      out = 1;
+      argv[i] = NULL;
+      b = 1;
       break;
     }
+    else if(!strcmp(argv[i], ">>")){     //output redirection with appending
+      outFile = argv[i+1];
+      argv[i] = NULL;
+      c = 1;
+      break;
+    } 
     i++;
   }
 }
@@ -86,9 +88,9 @@ int checkAmp(char **argv){
  * Gets the environmental variables and prints it on the screen
  *
  */
-void env(char **e){
+void env(char **environ){
   FILE *fd;
-  char **env = e;
+  char **env = environ;
   
   if (out == 1){
     fd = fopen(outFile, "w");
@@ -99,40 +101,36 @@ void env(char **e){
   
   if (out == 1 || out_a == 1){
     while(*env){
-      cout << fd << *env++ << endl;     //append fd and print
+      fprintf(fd,"%s\n", *env++);
+      //      cout << fd << *env++ << endl;     //append fd and print
     }
     fclose(fd);
   }
   else{
     while(*env){
-      cout << *env++ << endl;           //else print 
+      printf("%s\n", *env++);
+      //      cout << *env++ << endl;           //else print 
     }
   }  
 }
 
 // the main function 
 int main(int argc, char ** argv){
-  char buf[1024];
-  char * args[20];
+  char buf[MAX_BUFFER];
+  char * args[MAX_ARGS];
   char ** arg;
-  const char * path;
-
-  char r[PATH_MAX];
-  ssize_t c = readlink("/proc/self/exe", r, PATH_MAX);
-  if (c != -1) path = dirname(r);                        //creating path to pwd
-
+  char result[ PATH_MAX ]; 
+  ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
+  const char *path;
+  if (count != -1) {
+    path = dirname(result);
+  }
   int found = 0;
   int status;
-
-  /*
-  if(argc > 1) {
-    freopen(argv[1], "r", stdin);
-  }
-  */
+ 
   while(!feof(stdin)){
-    cout << "1730sh:" << path << "$ ";
-
-    if(fgets(buf, 1024, stdin)){
+    cout << "1730sh" << path << "$ ";
+     if(fgets(buf, MAX_BUFFER, stdin)){
       arg = args;
       *arg++ = strtok(buf," \t\n");
       while ((*arg++ = strtok(NULL, " \t\n")));
@@ -142,10 +140,8 @@ int main(int argc, char ** argv){
 
       if (args[0]) {
         // Input redirection
-        if (in == 1){
-          if(!access(inFile, R_OK)){     //Checks access 
-            freopen(inFile, "r", stdin); // Redirect stdin with file
-          }//if access
+        if (a == 1){
+	  freopen(inFile, "r", stdin); // Redirect stdin with file
         }//if input=1
 		
 	if(!strcmp(args[0], "export")){ //Add and change environment variables using export
@@ -161,7 +157,7 @@ int main(int argc, char ** argv){
 	  strcpy(string,v);
 	  strcat(string," ");
 	  printf("Setting env variable.. %s \n",string);
-	  ;
+	  
 	  if(putenv(string)!= 0){         //error in setting variable
 	    cout << stderr << endl;
 	    free(string);
@@ -191,15 +187,14 @@ int main(int argc, char ** argv){
 	      freopen(outFile, "w", stdout);
 	    
 	    //i/o redirection for input
-	    else if(in == 1)
-	      freopen(outFile, "a+", stdout);
-	    
+	    else if(a == 1)
+ 	      freopen(outFile, "a+", stdout);
+ 	    
 	    if(execvp (args[0], args) == -1){
 	      perror("Execution child error");
 	      abort();
 	    }
-	  }
-
+	  } 
 	  else{                
 	    if (!found) 
 	      waitpid(pid, &status, WUNTRACED); //calls wait
