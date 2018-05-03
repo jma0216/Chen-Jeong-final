@@ -18,13 +18,13 @@ void io(char **args);
 int checkAmp(char **args);
 
 extern char **environ; 
-int a;
-int b;
-int c;
+int out;
+int out_a;
+int in;
 pid_t pid;            
 int status;            
-int in;
-int out;
+//int in;
+//int out;
 char *inFile, *outFile; 
 
 
@@ -36,26 +36,26 @@ char *inFile, *outFile;
  */
 void io(char ** argv){
   // reset input and output and append
-  a = 0;
-  b = 0;
-  c = 0;
+  in = 0;//input redirection
+  out = 0;//output append
+  out_a = 0;//output redirect
   int i = 0;
   while(argv[i] != NULL){
     if (!strcmp(argv[i], "<")){           //input redirection
       strcpy(argv[i], "\0");
       inFile = argv[i+1];
-      a = 1;
+      in = 1;
     }
     else if(!strcmp(argv[i], ">>")){     //output redirection with appending
       argv[i] = NULL;
       outFile = argv[i+1];
-      c = 1;
+      out_a = 1;
       break;
     }
     else if(!strcmp(argv[i], ">")){      //output redirection
       argv[i] = NULL;
       outFile = argv[i+1];
-      b = 1;
+      out = 1;
       break;
     }
     i++;
@@ -72,11 +72,11 @@ int checkAmp(char **argv){
   int i = 0;
   int found = 0;
   while(argv[i] != NULL){
-  if (!strcmp(argv[i], "&")){
-    found = 1;
-    argv[i] = NULL; //Replace & with NULL
-  }
-  i++;
+    if (!strcmp(argv[i], "&")){
+      found = 1;
+      argv[i] = NULL; //Replace & with NULL
+    }
+    i++;
   }
   return found;
 }
@@ -90,14 +90,14 @@ void env(char **e){
   FILE *fd;
   char **env = e;
   
-  if (b == 1){
+  if (out == 1){
     fd = fopen(outFile, "w");
   }
-  else if (c == 1){
+  else if (out_a == 1){
     fd = fopen(outFile, "a");
   }
   
-  if (b == 1 || c == 1){
+  if (out == 1 || out_a == 1){
     while(*env){
       cout << fd << *env++ << endl;     //append fd and print
     }
@@ -123,6 +123,7 @@ int main(int argc, char ** argv){
 
   int found = 0;
   int status;
+
   /*
   if(argc > 1) {
     freopen(argv[1], "r", stdin);
@@ -141,7 +142,7 @@ int main(int argc, char ** argv){
 
       if (args[0]) {
         // Input redirection
-        if (a == 1){
+        if (in == 1){
           if(!access(inFile, R_OK)){     //Checks access 
             freopen(inFile, "r", stdin); // Redirect stdin with file
           }//if access
@@ -186,11 +187,11 @@ int main(int argc, char ** argv){
 	    setenv("parent", getenv("shell"), 1); 
 	    
 	    //i/o redirection for output
-	    if(b == 1)
+	    if(out == 1)
 	      freopen(outFile, "w", stdout);
 	    
 	    //i/o redirection for input
-	    else if(a == 1)
+	    else if(in == 1)
 	      freopen(outFile, "a+", stdout);
 	    
 	    if(execvp (args[0], args) == -1){
@@ -218,9 +219,9 @@ int main(int argc, char ** argv){
 	  }
 	  else if(pid == 0){
 	    setenv("parent", getenv("shell"), 1); //setting parent
-	    if(b == 1)
+	    if(out == 1)
 	      freopen(outFile, "w", stdout);
-	    else if(c == 1)
+	    else if(out_a == 1)
 	      freopen(outFile, "a+", stdout); 
 	    
 	    if(execvp (args[0], args) == -1){
